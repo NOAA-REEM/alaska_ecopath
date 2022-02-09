@@ -149,3 +149,59 @@ get.rsim.predprey(scene1,"all","Pandalidae")
 # 6     preyvul    Pandalidae          0  0.80811375
 
 
+# Combining the objective function with sense
+
+sense.scene <- scene1
+# From ecosense vignette
+# Note that fit_years is less than burn_years here!  How do we do sense
+# with data (e.g. catch data) when less than 50 years of data?
+sense.scene$params$BURN_YEARS <- 50
+NUM_RUNS <- 1000 # how many ecosystem parameter sets to generate
+parlist<-as.list(rep(NA,NUM_RUNS)) # create lists to store the generated parameters
+kept<-rep(NA,NUM_RUNS) # object to keep track of kept systems
+set.seed(666) # Optional, set seed so output can be replicated
+for (i in 1:NUM_RUNS){
+  EBSsense <- sense.scene # scenario object
+  # INSERT SENSE ROUTINE BELOW
+  parlist[[i]]<- sense.scene$params 		# Base ecosim params
+  parlist[[i]]<- rsim.sense(sense.scene,unbal,Vvary = c(-4.5,4.5), Dvary = c(0,0))	# Replace the base params with Ecosense params
+  EBSsense$start_state$Biomass <- parlist[[i]]$B_BaseRef # Apply the Ecosense starting biomass
+  parlist[[i]]$BURN_YEARS <- 50			# Set Burn Years to 50
+  EBSsense$params <- parlist[[i]] # replace base params with the Ecosense generated params
+  EBStest <- rsim.run(EBSsense, method="AB", years=fit.years) # Run rsim with the generated system
+  failList <- which(is.na(EBStest$end_state$Biomass))
+  {if (length(failList)>0)
+  {cat(i,": fail in year ",EBStest$crash_year,": ",EBStest$params$spname[failList],rsim.fit.obj(EBSsense,EBStest,F),"\n"); kept[i]<-F; flush.console()}
+    else 
+    {cat(i,": success!",rsim.fit.obj(EBSsense,EBStest,F),"\n"); kept[i]<-T;  flush.console()}} # output for the console
+  parlist[[i]]$BURN_YEARS <- 1
+}
+
+KEPT <- which(kept==T) # the number associated with the kept system
+nkept <- length(KEPT); nkept # how many were kept
+1-(nkept/NUM_RUNS) # rejection rate
+ecos <- as.list(rep(NA,length(KEPT))) # lists for simulated ecosystems
+k <- 0  # counter for simulated ecosystems
+for (i in KEPT) {
+  EBSsense <- scene1 # set up the scenario object
+  EBSsense$start_state$Biomass <- parlist[[i]]$B_BaseRef # set the starting Biomass to the generated values
+
+  EBSsense$params <- parlist[[i]] # set the params in the scenario object equal to the generated params.
+  EBSsense$BURN_YEARS <- -1 # no burn-in period
+  k <- k + 1 # set the number for the simulated ecosystem
+  ecos[[k]] <- rsim.run(EBSsense,method='AB', years=fit.years) # run rsim.run on the generated system
+  cat("Ecosystem no.", k, "out of", nkept, rsim.fit.obj(EBSsense,ecos[[k]],F),"\n"); flush.console() # progress output to console
+}
+
+par(mfrow=c(3,3))
+rsim.plot.biomass(scene1, run1, "W.pollock_Adu")
+for(i in 1:8){
+  EBSsense <- scene1 # set up the scenario object
+  EBSsense$start_state$Biomass <- parlist[[i]]$B_BaseRef # set the starting Biomass to the generated values
+  EBSsense$params <- parlist[[i]] # set the params in the scenario object equal to the generated params.
+  EBSsense$BURN_YEARS <- -1 # no burn-in period
+  k <- k + 1 # set the number for the simulated ecosystem
+  eco.kept <- rsim.run(EBSsense,method='AB', years=fit.years) # run rsim.run on the generated system
+  rsim.plot.biomass(EBSsense, eco.kept, "W.pollock_Adu")
+}
+
