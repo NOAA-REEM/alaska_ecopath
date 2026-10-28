@@ -1,3 +1,5 @@
+## OLD EXAMPLE NOT TESTED WITH RPATH FITTING PACKAGE KYA 28-Oct-2026
+
 library(Rpath)
 
 # Model file location
